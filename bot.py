@@ -13,9 +13,16 @@ app = BotClient(BOT_TOKEN)
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 YOUTUBE_PATTERN = re.compile(
-    r"(https?://)?(www\.)?"
-    r"(youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)"
-    r"[\w\-]+"
+    r"(https?://)?"
+    r"(www\.|m\.)?"
+    r"("
+    r"youtube\.com/watch\?[^\s]*v=[\w\-]+"
+    r"|youtube\.com/shorts/[\w\-]+"
+    r"|youtube\.com/live/[\w\-]+"
+    r"|youtu\.be/[\w\-]+"
+    r"|youtube\.com/embed/[\w\-]+"
+    r")",
+    re.IGNORECASE
 )
 
 DOWNLOAD_DIR = Path("downloads")
@@ -28,7 +35,13 @@ def is_youtube_url(text: str) -> bool:
 
 def extract_youtube_url(text: str) -> str | None:
     match = YOUTUBE_PATTERN.search(text)
-    return match.group(0) if match else None
+    if not match:
+        return None
+    url = match.group(0)
+    if not url.startswith("http"):
+        url = "https://" + url
+    url = url.replace("m.youtube.com", "www.youtube.com")
+    return url
 
 
 def download_video(url: str) -> str | None:
