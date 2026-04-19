@@ -5,13 +5,14 @@ import yt_dlp
 from pathlib import Path
 from rubpy.bot import BotClient, filters
 
-# ─── Config from environment variables ───────────────────────────────────────
+# ─── Config ───────────────────────────────────────────────────────────────────
 BOT_TOKEN = os.environ["RUBIKA_BOT_TOKEN"]
-
-# ─── Bot init ─────────────────────────────────────────────────────────────────
 app = BotClient(BOT_TOKEN)
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+DOWNLOAD_DIR = Path("downloads")
+DOWNLOAD_DIR.mkdir(exist_ok=True)
+
+# ─── YouTube URL Pattern ──────────────────────────────────────────────────────
 YOUTUBE_PATTERN = re.compile(
     r"(https?://)?"
     r"(www\.|m\.)?"
@@ -25,8 +26,24 @@ YOUTUBE_PATTERN = re.compile(
     re.IGNORECASE
 )
 
-DOWNLOAD_DIR = Path("downloads")
-DOWNLOAD_DIR.mkdir(exist_ok=True)
+
+def get_text(message) -> str:
+    """Extract text from rubpy message — tries all known fields."""
+    for field in ["text", "message", "caption", "raw_text"]:
+        val = getattr(message, field, None)
+        if val and isinstance(val, str) and val.strip():
+            return val.strip()
+
+    # rubpy sometimes nests text inside message_update or new_message
+    for wrapper in ["message_update", "new_message"]:
+        obj = getattr(message, wrapper, None)
+        if obj:
+            for field in ["text", "message", "caption"]:
+                val = getattr(obj, field, None)
+                if val and isinstance(val, str) and val.strip():
+                    return val.strip()
+
+    return ""
 
 
 def is_youtube_url(text: str) -> bool:
@@ -45,33 +62,33 @@ def extract_youtube_url(text: str) -> str | None:
 
 
 def download_video(url: str) -> str | None:
-    """Download YouTube video, return file path or None on failure."""
     ydl_opts = {
         "format": "bestvideo[ext=mp4][filesize<50M]+bestaudio[ext=m4a]/best[ext=mp4][filesize<50M]/best",
         "outtmpl": str(DOWNLOAD_DIR / "%(title)s.%(ext)s"),
         "merge_output_format": "mp4",
         "quiet": True,
         "no_warnings": True,
-        # Limit file size to avoid memory issues on GitHub Actions
-        "max_filesize": 50 * 1024 * 1024,  # 50MB
+        "max_filesize": 50 * 1024 * 1024,
     }
-
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info)
-        # Ensure .mp4 extension
         if not filename.endswith(".mp4"):
             filename = str(Path(filename).with_suffix(".mp4"))
         return filename if Path(filename).exists() else None
 
 
-# ─── Handlers ─────────────────────────────────────────────────────────────────
+# ─── Handler ──────────────────────────────────────────────────────────────────
 @app.on_update(filters.private)
 async def handle_message(client, message):
-    text = getattr(message, "text", "") or ""
+    text = get_text(message)
 
-    # /start command
-    if text.strip() == "/start":
+    # DEBUG — لاگ کامل برای فهمیدن ساختار message
+    print(f"[DEBUG] text='{text}'")
+    print(f"[DEBUG] message type: {type(message)}")
+    print(f"[DEBUG] message fields: {[a for a in dir(message) if not a.startswith('_')]}")
+
+    if text == "/start":
         await message.reply(
             "👋 سلام! من ربات دانلود یوتیوب هستم.\n\n"
             "📎 لینک یوتیوب بفرست، ویدیو رو برات آپلود می‌کنم!\n"
@@ -79,11 +96,15 @@ async def handle_message(client, message):
         )
         return
 
-    # YouTube URL detection
+    if not text:
+        return
+
     if not is_youtube_url(text):
         await message.reply(
-            "❌ لینک یوتیوب معتبر نیست!\n"
-            "مثال: https://youtu.be/dQw4w9WgXcQ"
+            f"❌ لینک یوتیوب معتبر نیست!\n"
+            f"متن دریافتی: `{text}`\n\n"
+            f"مثال صحیح:\n"
+            f"https://youtu.be/dQw4w9WgXcQ"
         )
         return
 
@@ -91,8 +112,8 @@ async def handle_message(client, message):
     await message.reply("⏳ در حال دانلود... لطفاً صبر کن!")
 
     loop = asyncio.get_event_loop()
+    file_path = None
     try:
-        # Run blocking download in executor to not block bot
         file_path = await loop.run_in_executor(None, download_video, url)
 
         if not file_path or not Path(file_path).exists():
@@ -105,7 +126,6 @@ async def handle_message(client, message):
         file_size_mb = Path(file_path).stat().st_size / (1024 * 1024)
         await message.reply(f"✅ دانلود شد ({file_size_mb:.1f}MB) — در حال آپلود...")
 
-        # Send video to user
         await client.send_video(
             object_guid=message.object_guid,
             video=file_path,
@@ -118,8 +138,7 @@ async def handle_message(client, message):
         await message.reply(f"❌ خطای غیرمنتظره:\n`{str(e)[:200]}`")
 
     finally:
-        # Cleanup downloaded file
-        if "file_path" in locals() and file_path and Path(file_path).exists():
+        if file_path and Path(file_path).exists():
             Path(file_path).unlink(missing_ok=True)
 
 
