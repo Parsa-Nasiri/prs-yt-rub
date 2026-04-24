@@ -13,7 +13,7 @@ load_dotenv()
 BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
 
 # ─── GitHub Actions Self-Restart ─────────────────────────
-GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+HUB_TOKEN: str = os.getenv("HUB_TOKEN", "")
 GITHUB_REPOSITORY: str = os.getenv("GITHUB_REPOSITORY", "")   # e.g. "username/rubika-bot"
 GITHUB_BRANCH: str = os.getenv("GITHUB_BRANCH", "main")
 GITHUB_WORKFLOW_FILE: str = os.getenv("GITHUB_WORKFLOW_FILE", "bot.yml")
