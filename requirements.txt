@@ -1,2 +1,25 @@
-rubpy
-yt-dlp
+# ── Rubika ──────────────────────────────────────────
+rubpy==7.3.4
+
+# ── Downloaders ─────────────────────────────────────
+yt-dlp>=2024.1.1
+instaloader>=4.10.3
+
+# ── Web scraping ────────────────────────────────────
+requests>=2.31.0
+beautifulsoup4>=4.12.3
+lxml>=5.1.0
+
+# ── Screenshot (headless browser) ───────────────────
+playwright>=1.42.0
+
+# ── Database ────────────────────────────────────────
+aiosqlite>=0.20.0
+
+# ── Utilities ───────────────────────────────────────
+python-dotenv>=1.0.1
+aiofiles>=23.2.1
+aiohttp>=3.9.3
+Pillow>=10.2.0
+mutagen>=1.47.0
+pycryptodome>=3.20.0
