@@ -21,7 +21,7 @@ jobs:
 
     env:
       BOT_TOKEN:            ${{ secrets.BOT_TOKEN }}
-      GITHUB_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+      HUB_TOKEN:         ${{ secrets.HUB_TOKEN }}
       GITHUB_REPOSITORY:    ${{ github.repository }}
       GITHUB_BRANCH:        ${{ github.ref_name }}
       GITHUB_WORKFLOW_FILE: bot.yml
