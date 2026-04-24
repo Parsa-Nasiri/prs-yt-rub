@@ -34,13 +34,13 @@ def trigger_github_workflow() -> bool:
     Dispatch a new run of the bot workflow via GitHub API.
     Returns True on success.
     """
-    if not GITHUB_TOKEN or not GITHUB_REPOSITORY:
-        logger.warning("GITHUB_TOKEN or GITHUB_REPOSITORY not set — cannot auto-restart.")
+    if not HUB_TOKEN or not GITHUB_REPOSITORY:
+        logger.warning("HUB_TOKEN or GITHUB_REPOSITORY not set — cannot auto-restart.")
         return False
 
     url     = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/actions/workflows/{GITHUB_WORKFLOW_FILE}/dispatches"
     headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Authorization": f"Bearer {HUB_TOKEN}",
         "Accept":        "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
