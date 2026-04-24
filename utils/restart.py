@@ -10,7 +10,7 @@ import logging
 import requests
 
 from config import (
-    GITHUB_TOKEN,
+    HUB_TOKEN,
     GITHUB_REPOSITORY,
     GITHUB_BRANCH,
     GITHUB_WORKFLOW_FILE,
