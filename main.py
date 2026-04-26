@@ -231,7 +231,7 @@ async def on_message(update):
 #  STARTUP & BACKGROUND TASKS
 # ══════════════════════════════════════════════════════════════
 
-@bot.on_start
+@bot.on_start()
 async def on_start(client):
     logger.info("🚀 Bot starting up...")
     await init_db()
