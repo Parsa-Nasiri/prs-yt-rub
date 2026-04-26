@@ -1,32 +1,33 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║            Rubika Multi-Tool Bot — main.py                   ║
-║  YouTube · Instagram · Pinterest · Screenshot · Web DL       ║
-║  Telegram Monitor · New Configs · GitHub Actions 24/7        ║
+║            Rubika Multi-Tool Bot — main.py                  ║
+║  YouTube · Instagram · Pinterest · Screenshot · Web DL      ║
+║  Telegram Monitor · New Configs · GitHub Actions 24/7       ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 
 import asyncio
 import logging
 import os
+from typing import Any
 
 from rubpy import BotClient
-from rubpy.bot.filters import text as text_filter, commands
+from rubpy.bot.filters import text as text_filter
 from rubpy.bot.enums import ChatKeypadTypeEnum
 
 from config import BOT_TOKEN, TEMP_DIR
 from database import init_db
-from keyboards import BTN, main_menu, cancel_menu, back_menu
-import handlers.youtube         as yt
-import handlers.instagram       as ig
-import handlers.pinterest       as pin
-import handlers.screenshot      as ss
-import handlers.website         as web
+from keyboards import BTN, main_menu
+import handlers.youtube as yt
+import handlers.instagram as ig
+import handlers.pinterest as pin
+import handlers.screenshot as ss
+import handlers.website as web
 import handlers.telegram_monitor as tgm
 
 logging.basicConfig(
-    level  = logging.INFO,
-    format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ HELP_TEXT = """
 لینک پین عمومی.
 
 **🖥️ اسکرین‌شات**
-آدرس سایت را ارسال کنید — تصویر کامل صفحه.
+آدرس سایت را ارسال کنید، تصویر کامل صفحه.
 
 **💾 دانلود سایت**
 • آفلاین: HTML+CSS+JS را به صورت ZIP دانلود می‌کند
@@ -91,37 +92,91 @@ HELP_TEXT = """
 
 
 # ══════════════════════════════════════════════════════════════
+#  COMPAT LAYER
+# ══════════════════════════════════════════════════════════════
+
+def _get_attr(obj: Any, *names: str, default: Any = None) -> Any:
+    for name in names:
+        if hasattr(obj, name):
+            value = getattr(obj, name)
+            if value is not None:
+                return value
+    return default
+
+
+def _extract_chat_id(message: Any) -> Any:
+    chat_id = _get_attr(message, "chat_id", "chat", "chat_guid", "dialog_id")
+    if chat_id is None and hasattr(message, "peer"):
+        chat_id = getattr(message.peer, "chat_id", None) or getattr(message.peer, "guid", None)
+    return chat_id
+
+
+def _extract_text(message: Any) -> str:
+    text = _get_attr(message, "text", "raw_text", "caption", default="") or ""
+    return str(text).strip()
+
+
+class UpdateContext:
+    """
+    Small compatibility wrapper.
+
+    Your old code expected:
+      - update.new_message
+      - update.chat_id
+      - update.reply(...)
+
+    rubpy BotClient handlers actually give:
+      - client, message
+
+    This wrapper keeps the older shape alive.
+    """
+
+    def __init__(self, message: Any):
+        self.new_message = message
+
+    @property
+    def chat_id(self) -> Any:
+        return _extract_chat_id(self.new_message)
+
+    @property
+    def text(self) -> str:
+        return _extract_text(self.new_message)
+
+    @property
+    def raw_text(self) -> str:
+        return self.text
+
+    async def reply(self, *args, **kwargs):
+        return await self.new_message.reply(*args, **kwargs)
+
+    def __getattr__(self, item):
+        return getattr(self.new_message, item)
+
+
+# ══════════════════════════════════════════════════════════════
 #  STATE ROUTER
 # ══════════════════════════════════════════════════════════════
 
 STATE_HANDLERS = {
-    # YouTube
-    yt.STATE_WAIT_URL:      yt.on_youtube_url,
-    yt.STATE_WAIT_QUALITY:  yt.on_youtube_quality,
-    # Instagram
-    ig.STATE_WAIT_URL:      ig.on_instagram_url,
-    # Pinterest
-    pin.STATE_WAIT_URL:     pin.on_pinterest_url,
-    # Screenshot
-    ss.STATE_WAIT_URL:      ss.on_screenshot_url,
-    # Website
-    web.STATE_WAIT_MODE:    web.on_website_mode_select,
+    yt.STATE_WAIT_URL: yt.on_youtube_url,
+    yt.STATE_WAIT_QUALITY: yt.on_youtube_quality,
+    ig.STATE_WAIT_URL: ig.on_instagram_url,
+    pin.STATE_WAIT_URL: pin.on_pinterest_url,
+    ss.STATE_WAIT_URL: ss.on_screenshot_url,
+    web.STATE_WAIT_MODE: web.on_website_mode_select,
     web.STATE_WAIT_OFFLINE: web.on_offline_url,
-    web.STATE_WAIT_FILE:    web.on_file_url,
-    # Telegram Monitor
+    web.STATE_WAIT_FILE: web.on_file_url,
     tgm.STATE_WAIT_CHANNEL: tgm.on_tg_channel_input,
 }
 
 
-async def _route_by_state(update, bot, state: str, text: str):
-    """Dispatch to the correct handler based on current user state."""
+async def _route_by_state(update: UpdateContext, bot_client: Any, state: str, text: str) -> bool:
+    from database import reset_state
 
-    # ── Cancel / Back ──────────────────────────────────────
     if text in (BTN.CANCEL, BTN.BACK, "/start"):
-        from database import reset_state
         await reset_state(update.chat_id)
         await update.reply(
-            "🏠 به منوی اصلی بازگشتید." if text != "/start" else WELCOME_TEXT,
+            WELCOME_TEXT if text == "/start" else "🏠 به منوی اصلی بازگشتید.",
             chat_keypad=main_menu(),
             chat_keypad_type=ChatKeypadTypeEnum.NEW,
         )
@@ -129,7 +184,7 @@ async def _route_by_state(update, bot, state: str, text: str):
 
     handler = STATE_HANDLERS.get(state)
     if handler:
-        await handler(update, bot)
+        await handler(update, bot_client)
         return True
 
     return False
@@ -139,34 +194,31 @@ async def _route_by_state(update, bot, state: str, text: str):
 #  MAIN MESSAGE HANDLER
 # ══════════════════════════════════════════════════════════════
 
-@bot.on_update(text_filter())
-async def on_message(update, client=None):
+@bot.on_update(text_filter)
+async def on_message(client, message):
     from database import get_state, log_action, reset_state
 
+    update = UpdateContext(message)
     _bot = client if client is not None else bot
 
-    if not update.new_message:
-        return
-
-    chat_id = update.chat_id
-    text    = (update.new_message.text or "").strip()
-
+    text = update.text
     if not text:
         return
 
-    # ── Fetch user state ──────────────────────────────────
-    user_state = await get_state(chat_id)
-    state      = user_state["state"]
+    chat_id = update.chat_id
+    if chat_id is None:
+        logger.warning("Could not resolve chat_id for incoming message.")
+        return
 
-    # ── If user is in a sub-flow, route there ─────────────
+    user_state = await get_state(chat_id)
+    state = user_state.get("state", "main")
+
     if state != "main":
         handled = await _route_by_state(update, _bot, state, text)
         if handled:
             return
 
-    # ── Main menu routing ─────────────────────────────────
     match text:
-
         case "/start" | "🔙 بازگشت به منوی اصلی" | "❌ لغو و بازگشت به منو":
             await reset_state(chat_id)
             await update.reply(
@@ -214,7 +266,6 @@ async def on_message(update, client=None):
                 chat_keypad=main_menu(),
             )
 
-        # Telegram monitor sub-menu buttons
         case BTN.TG_ADD:
             await tgm.on_tg_add_channel(update, _bot)
 
@@ -222,7 +273,6 @@ async def on_message(update, client=None):
             await tgm.on_tg_list_channels(update, _bot)
 
         case _:
-            # Unknown input in main state
             await update.reply(
                 "🤔 متوجه نشدم! لطفاً از دکمه‌های منو استفاده کنید.",
                 chat_keypad=main_menu(),
@@ -242,7 +292,6 @@ async def on_start(client):
     shutdown_event = asyncio.Event()
     client._shutdown_event = shutdown_event
 
-    # Start background tasks
     asyncio.create_task(tgm.alert_loop(client), name="tg_alert_loop")
     logger.info("📡 Telegram alert loop task created")
 
