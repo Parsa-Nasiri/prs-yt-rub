@@ -140,8 +140,10 @@ async def _route_by_state(update, bot, state: str, text: str):
 # ══════════════════════════════════════════════════════════════
 
 @bot.on_update(text_filter())
-async def on_message(update):
+async def on_message(update, client=None):
     from database import get_state, log_action, reset_state
+
+    _bot = client if client is not None else bot
 
     if not update.new_message:
         return
@@ -158,7 +160,7 @@ async def on_message(update):
 
     # ── If user is in a sub-flow, route there ─────────────
     if state != "main":
-        handled = await _route_by_state(update, bot, state, text)
+        handled = await _route_by_state(update, _bot, state, text)
         if handled:
             return
 
@@ -175,31 +177,31 @@ async def on_message(update):
 
         case BTN.YOUTUBE:
             await log_action(chat_id, "youtube_start")
-            await yt.on_youtube_start(update, bot)
+            await yt.on_youtube_start(update, _bot)
 
         case BTN.INSTAGRAM:
             await log_action(chat_id, "instagram_start")
-            await ig.on_instagram_start(update, bot)
+            await ig.on_instagram_start(update, _bot)
 
         case BTN.PINTEREST:
             await log_action(chat_id, "pinterest_start")
-            await pin.on_pinterest_start(update, bot)
+            await pin.on_pinterest_start(update, _bot)
 
         case BTN.SCREENSHOT:
             await log_action(chat_id, "screenshot_start")
-            await ss.on_screenshot_start(update, bot)
+            await ss.on_screenshot_start(update, _bot)
 
         case BTN.WEBSITE_DL:
             await log_action(chat_id, "website_start")
-            await web.on_website_start(update, bot)
+            await web.on_website_start(update, _bot)
 
         case BTN.TELEGRAM_MON:
             await log_action(chat_id, "tg_monitor_start")
-            await tgm.on_telegram_monitor_start(update, bot)
+            await tgm.on_telegram_monitor_start(update, _bot)
 
         case BTN.NEW_CONFIGS:
             await log_action(chat_id, "new_configs")
-            await tgm.on_new_configs(update, bot)
+            await tgm.on_new_configs(update, _bot)
 
         case BTN.HELP:
             await update.reply(HELP_TEXT, chat_keypad=main_menu())
@@ -214,10 +216,10 @@ async def on_message(update):
 
         # Telegram monitor sub-menu buttons
         case BTN.TG_ADD:
-            await tgm.on_tg_add_channel(update, bot)
+            await tgm.on_tg_add_channel(update, _bot)
 
         case BTN.TG_LIST:
-            await tgm.on_tg_list_channels(update, bot)
+            await tgm.on_tg_list_channels(update, _bot)
 
         case _:
             # Unknown input in main state
