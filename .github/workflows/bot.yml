@@ -1,0 +1,85 @@
+name: Rubika Multi-Tool Bot
+
+on:
+  # ── Manual trigger ─────────────────────────────────────────
+  workflow_dispatch:
+
+  # ── Auto-start on push to main ────────────────────────────
+  push:
+    branches: [main]
+
+  # ── Scheduled restart: every 6 hours as a safety net ────────
+  # (the watchdog inside the bot handles the primary restart)
+  schedule:
+    - cron: "0 */6 * * *"     # every 6 hours (at minute 0 of every 6th hour)
+
+jobs:
+  run-bot:
+    name: 🤖 Run Rubika Bot
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # 6 hours hard limit
+
+    env:
+      BOT_TOKEN:            ${{ secrets.BOT_TOKEN }}
+      GITHUB_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY:    ${{ github.repository }}
+      GITHUB_BRANCH:        ${{ github.ref_name }}
+      GITHUB_WORKFLOW_FILE: bot.yml
+      ADMIN_IDS:            ${{ secrets.ADMIN_IDS }}
+      CONFIG_CHANNELS:      ${{ secrets.CONFIG_CHANNELS }}
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python setup ───────────────────────────────────
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # ── 3. Install system dependencies ────────────────────
+      - name: 📦 Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            ffmpeg \
+            libpq-dev \
+            wget \
+            curl \
+            chromium-browser \
+            chromium-chromedriver
+
+      # ── 4. Install Python dependencies ────────────────────
+      - name: 📦 Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── 5. Install Playwright browsers ────────────────────
+      - name: 🌐 Install Playwright Chromium
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+
+      # ── 6. Restore SQLite DB from cache (persists data) ───
+      - name: 💾 Restore database cache
+        uses: actions/cache@v4
+        with:
+          path: bot_data.db
+          key: rubika-bot-db-${{ github.ref_name }}
+          restore-keys: rubika-bot-db-
+
+      # ── 7. Run the bot ─────────────────────────────────────
+      - name: 🚀 Start Bot
+        run: python main.py
+
+      # ── 8. Save DB to cache after bot stops ────────────────
+      - name: 💾 Save database cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: bot_data.db
+          key: rubika-bot-db-${{ github.ref_name }}-${{ github.run_id }}
