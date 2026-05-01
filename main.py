@@ -11,7 +11,6 @@ import logging
 import os
 
 from rubpy import BotClient
-from rubpy.bot.filters import text as text_filter, commands
 from rubpy.bot.enums import ChatKeypadTypeEnum
 
 from config import BOT_TOKEN, TEMP_DIR
@@ -139,18 +138,20 @@ async def _route_by_state(update, bot, state: str, text: str):
 #  MAIN MESSAGE HANDLER
 # ══════════════════════════════════════════════════════════════
 
-@bot.on_update(text_filter())
+@bot.on_update()
 async def on_message(update):
     from database import get_state, log_action, reset_state
 
     try:
-        if not update.new_message:
-            return
-
-        chat_id = update.chat_id
-        text    = (update.new_message.text or "").strip()
-
-        if not text:
+        # Handle text messages
+        if update.new_message and update.new_message.text:
+            chat_id = update.chat_id
+            text    = (update.new_message.text or "").strip()
+            
+            if not text:
+                return
+        else:
+            # No text message to process
             return
 
         # ── Fetch user state ──────────────────────────────────

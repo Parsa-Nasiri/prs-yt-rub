@@ -19,7 +19,8 @@ GITHUB_BRANCH: str = os.getenv("GITHUB_BRANCH", "main")
 GITHUB_WORKFLOW_FILE: str = os.getenv("GITHUB_WORKFLOW_FILE", "bot.yml")
 
 # ─── Runtime Limit ───────────────────────────────────────
-# GitHub Actions kills jobs after 6h, we restart at 5h40m
+# GitHub Actions kills jobs after 6h, we restart at 5h40m (340 min)
+# This ensures graceful restart and new job dispatch before hard limit
 MAX_RUNTIME_SECONDS: int = int(os.getenv("MAX_RUNTIME_SECONDS", str(5 * 3600 + 40 * 60)))
 
 # ─── File Settings ────────────────────────────────────────

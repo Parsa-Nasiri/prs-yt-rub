@@ -18,6 +18,9 @@ jobs:
     name: 🤖 Run Rubika Bot
     runs-on: ubuntu-latest
     timeout-minutes: 360   # 6 hours hard limit
+    concurrency:
+      group: bot-runner
+      cancel-in-progress: false
 
     env:
       BOT_TOKEN:            ${{ secrets.BOT_TOKEN }}
@@ -49,8 +52,14 @@ jobs:
             libpq-dev \
             wget \
             curl \
-            chromium-browser \
-            chromium-chromedriver
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libxkbcommon0 \
+            libxss1 \
+            libgbm1 \
+            libasound2
 
       # ── 4. Install Python dependencies ────────────────────
       - name: 📦 Install Python dependencies
