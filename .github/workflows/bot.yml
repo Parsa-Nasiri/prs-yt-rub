@@ -4,9 +4,9 @@ on:
   # ── Manual trigger ─────────────────────────────────────────
   workflow_dispatch:
 
-  # ── Auto-start on push to main ────────────────────────────
+  # ── Auto-start on push to main branch ──────────────────────
   push:
-    branches: [main]
+    branches: [main, master]
 
   # ── Scheduled restart: every 6 hours as a safety net ────────
   # (the watchdog inside the bot handles the primary restart)
