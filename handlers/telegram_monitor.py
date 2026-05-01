@@ -249,7 +249,7 @@ async def on_tg_get_channel_messages(update, bot, channel: str, count: int = 5):
 
 async def alert_loop(bot):
     """
-    Runs forever in background.
+    Runs in background (with graceful shutdown support).
     Every MONITOR_POLL_INTERVAL seconds checks subscribed channels for new messages.
     """
     from database import get_all_alert_subs, update_last_msg_link
@@ -257,10 +257,23 @@ async def alert_loop(bot):
     logger.info("📡 Telegram alert loop started (interval=%ds)", MONITOR_POLL_INTERVAL)
     loop = asyncio.get_event_loop()
 
+    # Get shutdown event if bot has one
+    shutdown_event = getattr(bot, '_shutdown_event', None)
+
     while True:
+        # Check for shutdown signal
+        if shutdown_event and shutdown_event.is_set():
+            logger.info("📡 Alert loop shutting down gracefully")
+            break
+
         try:
             subs = await get_all_alert_subs()
             for chat_id, channel, last_link in subs:
+                # Check shutdown during channel iteration
+                if shutdown_event and shutdown_event.is_set():
+                    logger.info("📡 Alert loop shutdown during iteration")
+                    break
+
                 try:
                     msgs = await loop.run_in_executor(
                         None, _fetch_channel_messages, channel, 1
@@ -288,4 +301,9 @@ async def alert_loop(bot):
         except Exception as exc:
             logger.error("Alert loop outer error: %s", exc)
 
-        await asyncio.sleep(MONITOR_POLL_INTERVAL)
+        # Sleep with shutdown check
+        try:
+            await asyncio.sleep(MONITOR_POLL_INTERVAL)
+        except asyncio.CancelledError:
+            logger.info("📡 Alert loop cancelled")
+            break
