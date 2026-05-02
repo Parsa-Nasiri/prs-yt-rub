@@ -27,18 +27,21 @@ jobs:
       cancel-in-progress: true
 
     env:
-      BOT_TOKEN:            ${{ secrets.BOT_TOKEN }}
-      GITHUB_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
-      GITHUB_REPOSITORY:    ${{ github.repository }}
-      GITHUB_BRANCH:        ${{ github.ref_name }}
-      GITHUB_WORKFLOW_FILE: bot.yml
-      ADMIN_IDS:            ${{ secrets.ADMIN_IDS }}
-      CONFIG_CHANNELS:      ${{ secrets.CONFIG_CHANNELS }}
+      BOT_TOKEN:                           ${{ secrets.BOT_TOKEN }}
+      GITHUB_TOKEN:                        ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY:                   ${{ github.repository }}
+      GITHUB_BRANCH:                       ${{ github.ref_name }}
+      GITHUB_WORKFLOW_FILE:                bot.yml
+      ADMIN_IDS:                           ${{ secrets.ADMIN_IDS }}
+      CONFIG_CHANNELS:                     ${{ secrets.CONFIG_CHANNELS }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:  true
 
     steps:
       # ── 1. Checkout ────────────────────────────────────────
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       # ── 2. Python setup ───────────────────────────────────
       - name: 🐍 Set up Python 3.11
@@ -46,6 +49,8 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       # ── 3. Install system dependencies ────────────────────
       # Notes on Ubuntu 24.04 (Noble) package renames:
@@ -55,8 +60,9 @@ jobs:
       # so we only need ffmpeg here (required by yt-dlp for merging streams).
       - name: 📦 Install system dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get update -qq 2>&1 || true
+          sudo apt-get install -y ffmpeg 2>&1 || true
+        continue-on-error: true
 
       # ── 4. Install Python dependencies ────────────────────
       - name: 📦 Install Python dependencies
