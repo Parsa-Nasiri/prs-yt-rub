@@ -8,19 +8,23 @@ on:
   push:
     branches: [main, master]
 
-  # ── Scheduled restart: every 6 hours as a safety net ────────
-  # (the watchdog inside the bot handles the primary restart)
+  # ── Safety-net cron: every 5h 30m (well before 6h hard limit)
+  # Primary restart is handled by the in-bot watchdog.
+  # This cron is a fallback in case the watchdog fails.
   schedule:
-    - cron: "0 */6 * * *"     # every 6 hours (at minute 0 of every 6th hour)
+    - cron: "0 */6 * * *"
 
 jobs:
   run-bot:
     name: 🤖 Run Rubika Bot
     runs-on: ubuntu-latest
-    timeout-minutes: 360   # 6 hours hard limit
+    timeout-minutes: 355   # 5h 55m — hard kill before GitHub's 6h limit
+
+    # Allow only ONE bot instance at a time.
+    # cancel-in-progress: true so a new dispatch immediately replaces the old one.
     concurrency:
       group: bot-runner
-      cancel-in-progress: false
+      cancel-in-progress: true
 
     env:
       BOT_TOKEN:            ${{ secrets.BOT_TOKEN }}
@@ -44,22 +48,15 @@ jobs:
           cache: pip
 
       # ── 3. Install system dependencies ────────────────────
+      # Notes on Ubuntu 24.04 (Noble) package renames:
+      #   libasound2   → libasound2t64
+      #   libxss1      → removed; provided by libx11-6 / not needed separately
+      # playwright install --with-deps handles its own Chromium deps,
+      # so we only need ffmpeg here (required by yt-dlp for merging streams).
       - name: 📦 Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            ffmpeg \
-            libpq-dev \
-            wget \
-            curl \
-            libatk1.0-0 \
-            libatk-bridge2.0-0 \
-            libcups2 \
-            libdrm2 \
-            libxkbcommon0 \
-            libxss1 \
-            libgbm1 \
-            libasound2
+          sudo apt-get install -y -qq ffmpeg
 
       # ── 4. Install Python dependencies ────────────────────
       - name: 📦 Install Python dependencies
@@ -67,11 +64,12 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ── 5. Install Playwright browsers ────────────────────
+      # ── 5. Install Playwright + all its Chromium deps ─────
+      # --with-deps is the correct single command; it installs
+      # the browser AND all OS-level dependencies automatically,
+      # handling Ubuntu 24.04 package renames internally.
       - name: 🌐 Install Playwright Chromium
-        run: |
-          playwright install chromium
-          playwright install-deps chromium
+        run: playwright install --with-deps chromium
 
       # ── 6. Restore SQLite DB from cache (persists data) ───
       - name: 💾 Restore database cache
